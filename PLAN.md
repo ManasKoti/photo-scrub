@@ -37,8 +37,6 @@ A web tool that removes privacy-revealing metadata from phone photos. All proces
 | 5. HEIC | Decoder loaded on demand, HEIC → clean JPEG | ✅ done |
 | 6. Polish & ship | Accessibility scan (axe), CSP (no network), GitHub Pages workflow, filename option | ✅ built: goes live after first push |
 
-Check-ins after Phases 1, 3 and 6.
-
 ## Out of scope for v1
 Batch/ZIP, offline install (PWA), video files, RAW formats.
 
