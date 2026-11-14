@@ -10,15 +10,19 @@ Phone cameras save a lot of information inside every photo (EXIF, XMP and more).
 
 ## How it works
 
-PhotoScrub does **not** re-encode your photo. It reads the file's structure and copies the image data byte for byte, leaving out only the metadata blocks. Quality stays identical. See [`src/core/jpeg.ts`](src/core/jpeg.ts) for the commented JPEG implementation.
+PhotoScrub does **not** re-encode your photo. It reads the file's structure and copies the image data byte for byte, leaving out only the metadata blocks. Quality stays identical. See the commented code in [`src/core/`](src/core/): `jpeg.ts`, `png.ts` and `webp.ts` do the cleaning, and `inspect.ts` explains what a photo reveals.
+
+The site makes **no requests to other servers**: fonts are bundled, and there are no analytics.
 
 ## Status
 
 | Format | Status |
 |---|---|
-| JPEG | ✅ Lossless removal (Phase 1) |
-| PNG, WebP | 🔜 Phase 3 |
+| JPEG | ✅ Lossless removal |
+| PNG, WebP | ✅ Lossless removal |
 | HEIC (iPhone) | 🔜 Phase 5 |
+
+Before cleaning, PhotoScrub shows **what the photo reveals** in plain language (location, phone, time, name, camera settings), plus the raw tags for the curious. After cleaning, it re-reads the clean copy to double-check that nothing was left behind.
 
 See [PLAN.md](PLAN.md) for the full roadmap.
 

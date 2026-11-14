@@ -12,6 +12,7 @@
 
 import { asciiAt, concat, readU16BE, startsWithAscii } from './bytes';
 import { buildOrientationOnlyExif, EXIF_HEADER, getOrientation, parseTiff } from './exif';
+import { RemovalTally, type StripOptions, type StripResult } from './types';
 
 export type JpegSegmentKind =
   | 'jfif' // APP0 JFIF: basic pixel-density info (kept, minus any thumbnail)
@@ -36,28 +37,11 @@ export interface JpegSegment {
   kind: JpegSegmentKind;
 }
 
-export interface RemovedItem {
-  kind: JpegSegmentKind | 'thumbnail' | 'trailer';
-  label: string;
-  bytes: number;
-}
+export type JpegStripOptions = StripOptions;
+export type JpegStripResult = StripResult;
+type RemovedKind = JpegSegmentKind | 'thumbnail' | 'trailer';
 
-export interface JpegStripOptions {
-  /** Keep a minimal EXIF block with just the Orientation tag. Default true. */
-  keepOrientation?: boolean;
-  /** Keep the ICC colour profile. Default true. */
-  keepColorProfile?: boolean;
-}
-
-export interface JpegStripResult {
-  output: Uint8Array;
-  removed: RemovedItem[];
-  /** Orientation value written into the clean file, if any. */
-  orientation?: number;
-  warnings: string[];
-}
-
-export const LABELS: Record<RemovedItem['kind'], string> = {
+export const LABELS: Record<RemovedKind, string> = {
   exif: 'EXIF data (GPS location, phone model, date & time, camera settings)',
   xmp: 'XMP data (editing history, location, device info)',
   'xmp-extended': 'Extended XMP data',
@@ -203,10 +187,8 @@ export function stripJpeg(b: Uint8Array, opts: JpegStripOptions = {}): JpegStrip
   const { segments, end } = parseJpeg(b);
 
   const parts: Uint8Array[] = [];
-  const removedBytes = new Map<RemovedItem['kind'], number>();
-  const addRemoved = (kind: RemovedItem['kind'], n: number) => {
-    if (n > 0) removedBytes.set(kind, (removedBytes.get(kind) ?? 0) + n);
-  };
+  const tally = new RemovalTally(LABELS);
+  const addRemoved = (kind: RemovedKind, n: number) => tally.add(kind, n);
   const warnings: string[] = [];
   let orientation: number | undefined;
   let orientationWritten = false;
@@ -255,11 +237,7 @@ export function stripJpeg(b: Uint8Array, opts: JpegStripOptions = {}): JpegStrip
     addRemoved('trailer', b.length - end);
   }
 
-  const removed: RemovedItem[] = [];
-  for (const [kind, n] of removedBytes) {
-    if (n > 0) removed.push({ kind, label: LABELS[kind], bytes: n });
-  }
-  return { output: concat(parts), removed, orientation, warnings };
+  return { output: concat(parts), removed: tally.items(), orientation, warnings };
 }
 
 /**

@@ -155,7 +155,8 @@ describe('detectFormat / scrub', () => {
     expect(r.mime).toBe('image/jpeg');
   });
 
-  it('scrub() says PNG is not supported yet', () => {
-    expect(() => scrub(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toThrow(/later phase/);
+  it('scrub() says HEIC is not supported yet', () => {
+    const heic = new Uint8Array([0, 0, 0, 24, ...[...'ftypheic'].map((c) => c.charCodeAt(0)), 0, 0, 0, 0]);
+    expect(() => scrub(heic)).toThrow(/coming soon/);
   });
 });

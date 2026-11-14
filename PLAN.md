@@ -30,11 +30,11 @@ A web tool that removes privacy-revealing metadata from phone photos. All proces
 |---|---|---|
 | 0. Setup | Vite + TS, tests, git, docs | ✅ done |
 | 1. JPEG MVP | Lossless JPEG strip, pick or drop, download, self-check | ✅ done |
-| 2. What's exposed | Metadata inspector grouped by risk, GPS coordinates. **Design review with Manas first.** | next |
-| 3. PNG + WebP | Chunk-level stripping | |
-| 4. Selective removal | Category toggles, EXIF rewrite with kept fields | |
+| 2. What's exposed | Metadata inspector grouped by risk, approved design, Why page | ✅ done |
+| 3. PNG + WebP | Chunk-level stripping | ✅ done |
+| 4. Selective removal | Category toggles, EXIF rewrite with kept fields | next |
 | 5. HEIC | Decoder loaded on demand, HEIC → clean JPEG | |
-| 6. Polish & ship | Filename anonymising, accessibility, CSP (no network), deploy to GitHub Pages | |
+| 6. Polish & ship | Accessibility pass, CSP (no network), deploy to GitHub Pages (filename option already done) | |
 
 Check-ins after Phases 1, 3 and 6.
 

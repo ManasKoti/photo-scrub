@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Why the hidden data in your photos matters, and what PhotoScrub does about it." />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#F4F7FF" />
+    <title>Why it matters · PhotoScrub</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <svg aria-hidden="true" style="display: none">
+      <symbol id="i-logo" viewBox="0 0 24 24"><rect x="3" y="10" width="13" height="10" rx="3" /><circle cx="18.5" cy="6.5" r="2.5" /><circle cx="12" cy="4.5" r="1.5" /><path d="M6.5 15h6" /></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></symbol>
+    </svg>
+
+    <div class="page">
+      <header class="site-header">
+        <a class="brand" href="./">
+          <span class="brand-mark"><svg class="i" width="26" height="26" aria-hidden="true"><use href="#i-logo" /></svg></span>
+          <span class="brand-name">PhotoScrub</span>
+        </a>
+        <nav aria-label="Main" class="nav">
+          <a class="nav-pill nav-pill-accent" href="./">Scrub a photo</a>
+          <a class="nav-link" href="https://github.com/ManasKoti/photo-scrub" rel="noreferrer">Source code</a>
+        </nav>
+      </header>
+
+      <main class="column why">
+        <section class="hero">
+          <span class="eyebrow">WHY IT MATTERS</span>
+          <h1>What your photos say<br />behind your back</h1>
+          <p class="lead">Every photo your phone takes carries a hidden label called <strong class="ink">metadata</strong>. You never see it, but anyone who saves the original file can read it in seconds.</p>
+        </section>
+
+        <section aria-labelledby="clues" class="stack">
+          <h2 id="clues" class="section-title center">One photo, five clues</h2>
+          <div class="clues">
+            <div class="clue-col">
+              <div class="clue high"><strong>Where you were</strong><br /><span class="small muted">GPS coordinates, accurate to a few metres</span></div>
+              <div class="clue medium"><strong>When you were there</strong><br /><span class="small muted">Date and time, to the second</span></div>
+            </div>
+            <div class="photo-art" aria-hidden="true">
+              <div><span class="sun"></span><span class="hill1"></span><span class="hill2"></span><span class="pin"></span></div>
+            </div>
+            <div class="clue-col">
+              <div class="clue medium"><strong>Which phone you own</strong><br /><span class="small muted">Model, and sometimes its serial number</span></div>
+              <div class="clue medium"><strong>Who you are</strong><br /><span class="small muted">Your name, if an app added it</span></div>
+              <div class="clue"><strong>What you cropped out</strong><br /><span class="small muted">A hidden thumbnail can keep the full original</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="where" class="card prose stack" style="padding: 28px; border-radius: 30px">
+          <h2 id="where" class="section-title">“Don’t websites remove it anyway?”</h2>
+          <p>Some big social networks strip most of it when you upload. Plenty of places hand over the original file untouched:</p>
+          <ul>
+            <li>Email attachments</li>
+            <li>Photos sent as a “file” or “document” in chat apps</li>
+            <li>Cloud-storage share links</li>
+            <li>Forums, marketplaces and listing sites</li>
+            <li>Your own blog or portfolio</li>
+          </ul>
+          <p class="muted">And even when a site does strip it, the site itself has already seen everything. Cleaning the photo first keeps it yours.</p>
+        </section>
+
+        <section aria-labelledby="cases" class="stack">
+          <h2 id="cases" class="section-title">It has happened before</h2>
+          <div class="cases">
+            <article class="case">
+              <strong>A fugitive, found by one photo</strong>
+              <p>In December 2012, Vice published a photo of software founder John McAfee while he was on the run. The iPhone photo still had GPS coordinates in it, which placed him in Guatemala. He was arrested there days later.</p>
+              <a href="https://www.cjr.org/behind_the_news/how_to_manage_metadata.php" rel="noreferrer">Columbia Journalism Review</a>
+            </article>
+            <article class="case">
+              <strong>A military warning</strong>
+              <p>In 2012 the US Army warned soldiers about geotagged photos. It described a 2007 attack in Iraq where photos posted online helped the enemy locate and destroy four helicopters.</p>
+              <a href="https://www.army.mil/article/75165/geotagging_poses_security_risks" rel="noreferrer">U.S. Army, “Geotagging poses security risks”</a>
+            </article>
+          </div>
+        </section>
+
+        <section aria-labelledby="limits" class="limits prose stack">
+          <h2 id="limits" class="section-title">What PhotoScrub can’t do</h2>
+          <p>It removes the <strong>hidden</strong> data. It can’t hide what’s <strong>visible</strong> in the picture. Before you post, take a quick look for:</p>
+          <ul>
+            <li>House numbers, street signs and car number plates</li>
+            <li>Your school or office logo, ID badges and uniforms</li>
+            <li>Reflections in windows, mirrors and sunglasses</li>
+            <li>Screens and documents in the background</li>
+          </ul>
+        </section>
+
+        <section aria-labelledby="faq" class="faq stack">
+          <h2 id="faq" class="section-title">Questions</h2>
+          <details>
+            <summary>Is my photo uploaded anywhere?<svg class="i chev" width="22" height="22" aria-hidden="true"><use href="#i-chevron" /></svg></summary>
+            <p>No. Everything happens inside your browser, on your device. The code is public, so anyone can check.</p>
+          </details>
+          <details>
+            <summary>Will my photo lose quality?<svg class="i chev" width="22" height="22" aria-hidden="true"><use href="#i-chevron" /></svg></summary>
+            <p>No. PhotoScrub doesn’t re-save the image. It cuts the hidden data out of the file and leaves the picture exactly as it was.</p>
+          </details>
+          <details>
+            <summary>Can I stop my phone adding location in the first place?<svg class="i chev" width="22" height="22" aria-hidden="true"><use href="#i-chevron" /></svg></summary>
+            <p>Yes. On most Android phones, open the Camera app’s settings and turn off location tags. On iPhone, go to Settings › Privacy &amp; Security › Location Services › Camera and choose Never. Your phone still adds its model and the time, so scrubbing is still worth it.</p>
+          </details>
+          <details>
+            <summary>Why keep the rotation info?<svg class="i chev" width="22" height="22" aria-hidden="true"><use href="#i-chevron" /></svg></summary>
+            <p>It only says which way is up. Without it, portrait photos would show up sideways. It reveals nothing about you.</p>
+          </details>
+        </section>
+
+        <section class="hero">
+          <h2 class="section-title">Ready to clean one?</h2>
+          <a class="btn btn-primary btn-big" href="./">Scrub a photo</a>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <p>Free and open source. Works in your browser, with no uploads, accounts or tracking.</p>
+      </footer>
+    </div>
+    <script type="module" src="/src/why.ts"></script>
+  </body>
+</html>

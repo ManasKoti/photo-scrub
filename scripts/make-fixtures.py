@@ -65,3 +65,37 @@ picture().save(OUT / "clean.jpg", quality=90)
 picture().save(OUT / "restart-markers.jpg", quality=90, exif=exif_block(3), restart_marker_blocks=1)
 
 print("wrote fixtures to", OUT)
+
+# ---- PNG and WebP (Phase 3) -------------------------------------------------
+from PIL.PngImagePlugin import PngInfo
+import struct
+import datetime
+
+# 5. Screenshot-style PNG with EXIF (eXIf), text chunks, XMP (iTXt) and a timestamp (tIME).
+info = PngInfo()
+info.add_text("Software", "FakeOS Screenshot 18.1")
+info.add_text("Author", "Jane Doe")
+info.add_text("Creation Time", "2026-11-14 23:01:00")
+info.add_itxt("XML:com.adobe.xmp", XMP.decode())
+info.add_text("Comment", "a compressed secret comment " * 4, zip=True)
+info.add(b"tIME", struct.pack(">HBBBBB", 2026, 11, 14, 17, 31, 0))
+p = OUT / "screenshot.png"
+picture().save(p, pnginfo=info, exif=exif_block(6))
+with open(p, "ab") as f:
+    f.write(b"TRAILING-SECRET" * 20)
+
+# 6. Transparent PNG with no metadata (must come out unchanged).
+Image.new("RGBA", (64, 64), (255, 0, 0, 128)).save(OUT / "clean.png")
+
+# 7. WebP with EXIF, XMP and an ICC profile.
+from PIL import ImageCms
+srgb = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+picture().save(OUT / "phone.webp", quality=85, exif=exif_block(6), xmp=XMP, icc_profile=srgb)
+
+# 8. Lossless WebP with alpha and only XMP.
+Image.new("RGBA", (64, 64), (0, 128, 255, 200)).save(OUT / "alpha-xmp.webp", lossless=True, xmp=XMP)
+
+# 9. Simple (VP8 only) WebP, no metadata.
+picture().save(OUT / "clean.webp", quality=80)
+
+print("wrote PNG/WebP fixtures")
