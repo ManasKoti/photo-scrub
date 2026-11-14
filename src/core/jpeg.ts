@@ -11,7 +11,7 @@
  */
 
 import { asciiAt, concat, readU16BE, startsWithAscii } from './bytes';
-import { buildOrientationOnlyExif, EXIF_HEADER, getOrientation, parseTiff } from './exif';
+import { cleanExif, EXIF_HEADER, isOrientationOnly } from './exif';
 import { RemovalTally, type StripOptions, type StripResult } from './types';
 
 export type JpegSegmentKind =
@@ -190,8 +190,9 @@ export function stripJpeg(b: Uint8Array, opts: JpegStripOptions = {}): JpegStrip
   const tally = new RemovalTally(LABELS);
   const addRemoved = (kind: RemovedKind, n: number) => tally.add(kind, n);
   const warnings: string[] = [];
+  const keep = opts.keep ?? new Set();
   let orientation: number | undefined;
-  let orientationWritten = false;
+  let exifWritten = false;
 
   for (const seg of segments) {
     const bytes = () => b.slice(seg.offset, seg.offset + seg.length);
@@ -212,16 +213,16 @@ export function stripJpeg(b: Uint8Array, opts: JpegStripOptions = {}): JpegStrip
       }
       case 'exif': {
         addRemoved('exif', seg.length);
-        if (keepOrientation && !orientationWritten) {
-          const tiff = parseTiff(b.subarray(seg.offset + 4 + EXIF_HEADER.length, seg.offset + seg.length));
-          const o = tiff ? getOrientation(tiff) : undefined;
-          if (o !== undefined && o !== 1) {
-            const replacement = app1(buildOrientationOnlyExif(o));
+        if (!exifWritten) {
+          // Rebuild EXIF with only what the user keeps (and Orientation).
+          const clean = cleanExif(b.subarray(seg.offset + 4 + EXIF_HEADER.length, seg.offset + seg.length), keep, keepOrientation);
+          if (clean.tiff && clean.tiff.length + EXIF_HEADER.length <= 65533) {
+            const replacement = app1(concat([EXIF_HEADER, clean.tiff]));
             parts.push(replacement);
             addRemoved('exif', -replacement.length);
-            orientation = o;
+            orientation = clean.orientation;
           }
-          orientationWritten = true;
+          exifWritten = true;
         }
         break;
       }
@@ -255,14 +256,7 @@ export function findJpegMetadata(b: Uint8Array): string[] {
       continue;
     }
     if (seg.kind === 'exif') {
-      const tiff = parseTiff(b.subarray(seg.offset + 4 + EXIF_HEADER.length, seg.offset + seg.length));
-      const onlyOrientation =
-        tiff !== null &&
-        tiff.ifd0.length === 1 &&
-        tiff.ifd0[0]?.tag === 0x0112 &&
-        tiff.exif.length === 0 &&
-        tiff.gps.length === 0 &&
-        tiff.ifd1.length === 0;
+      const onlyOrientation = isOrientationOnly(b.subarray(seg.offset + 4 + EXIF_HEADER.length, seg.offset + seg.length));
       found.push(onlyOrientation ? 'orientation-only' : 'exif');
       continue;
     }

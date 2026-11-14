@@ -99,3 +99,14 @@ Image.new("RGBA", (64, 64), (0, 128, 255, 200)).save(OUT / "alpha-xmp.webp", los
 picture().save(OUT / "clean.webp", quality=80)
 
 print("wrote PNG/WebP fixtures")
+
+# ---- HEIC (Phase 5) -----------------------------------------------------------
+# Needs: pip install pillow-heif
+try:
+    import pillow_heif
+
+    pillow_heif.register_heif_opener()
+    picture().save(OUT / "iphone.heic", quality=80, exif=exif_block(1).tobytes())
+    print("wrote HEIC fixture")
+except ImportError:
+    print("skipped HEIC fixture (pip install pillow-heif)")

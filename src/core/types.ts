@@ -1,6 +1,10 @@
 /** Shared shapes used by every format's stripper. */
 
+import type { KeepSet } from './categories';
+
 export interface StripOptions {
+  /** Categories to keep (e.g. date & time). Default: none, remove everything. */
+  keep?: KeepSet;
   /** Keep a minimal EXIF block with just the Orientation tag. Default true. */
   keepOrientation?: boolean;
   /** Keep the ICC colour profile. Default true. */

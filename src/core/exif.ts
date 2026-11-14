@@ -5,10 +5,12 @@
  * (Image File Directories), each a list of 12-byte entries
  * (tag, type, count, value-or-offset).
  *
- * Phase 1 only needs to read the Orientation tag and write a tiny EXIF
- * block that contains nothing but Orientation. Phase 4 (selective removal)
- * builds on the same reader.
+ * The reader finds every tag; `cleanExif` writes a new, smaller EXIF block
+ * holding only the categories the user chose to keep (plus Orientation, so
+ * photos stay the right way up).
  */
+
+import { categorizeTag, type IfdName, type KeepSet } from './categories';
 
 export const TAG_ORIENTATION = 0x0112;
 export const TAG_EXIF_IFD = 0x8769;
@@ -137,4 +139,104 @@ export function buildOrientationOnlyExif(orientation: number): Uint8Array {
   out.set(EXIF_HEADER, 0);
   out.set(tiff, EXIF_HEADER.length);
   return out;
+}
+
+// ---- writing: keep only the categories the user chose ----------------------
+
+
+function encodeU32(v: number, le: boolean): Uint8Array {
+  const out = new Uint8Array(4);
+  new DataView(out.buffer).setUint32(0, v, le);
+  return out;
+}
+
+/**
+ * Write a TIFF structure with the given directories. Values are copied as
+ * raw bytes, so they keep the original byte order (`le`).
+ */
+export function buildTiff(le: boolean, ifd0: IfdEntry[], exif: IfdEntry[], gps: IfdEntry[]): Uint8Array {
+  const pointer = (tag: number): IfdEntry => ({ tag, type: 4, count: 1, value: encodeU32(0, le) });
+  const dirs: IfdEntry[][] = [
+    [...ifd0, ...(exif.length ? [pointer(TAG_EXIF_IFD)] : []), ...(gps.length ? [pointer(TAG_GPS_IFD)] : [])],
+    exif,
+    gps,
+  ].map((d) => [...d].sort((a, b) => a.tag - b.tag));
+
+  const sizeOf = (entries: IfdEntry[]) =>
+    2 + entries.length * 12 + 4 + entries.reduce((n, e) => n + (e.value.length > 4 ? e.value.length + (e.value.length & 1) : 0), 0);
+  const offsets: number[] = [];
+  let at = 8;
+  for (const d of dirs) {
+    offsets.push(d.length ? at : 0);
+    at += d.length ? sizeOf(d) : 0;
+  }
+
+  const out = new Uint8Array(at);
+  const view = new DataView(out.buffer);
+  out.set(le ? [0x49, 0x49, 0x2a, 0x00] : [0x4d, 0x4d, 0x00, 0x2a]);
+  view.setUint32(4, 8, le);
+
+  dirs.forEach((entries, i) => {
+    if (!entries.length) return;
+    const start = offsets[i]!;
+    view.setUint16(start, entries.length, le);
+    let data = start + 2 + entries.length * 12 + 4;
+    entries.forEach((e, j) => {
+      const p = start + 2 + j * 12;
+      view.setUint16(p, e.tag, le);
+      view.setUint16(p + 2, e.type, le);
+      view.setUint32(p + 4, e.count, le);
+      let value = e.value;
+      if (e.tag === TAG_EXIF_IFD && i === 0) value = encodeU32(offsets[1]!, le);
+      if (e.tag === TAG_GPS_IFD && i === 0) value = encodeU32(offsets[2]!, le);
+      if (value.length <= 4) {
+        out.set(value, p + 8);
+      } else {
+        view.setUint32(p + 8, data, le);
+        out.set(value, data);
+        data += value.length + (value.length & 1);
+      }
+    });
+    view.setUint32(start + 2 + entries.length * 12, 0, le); // no next directory (drops the thumbnail)
+  });
+  return out;
+}
+
+export interface CleanExif {
+  /** New TIFF bytes, or null when nothing is left to keep. */
+  tiff: Uint8Array | null;
+  orientation?: number;
+}
+
+/**
+ * Rebuild EXIF keeping only the chosen categories (plus Orientation if asked).
+ * The thumbnail, maker notes, comments and anything uncategorized are dropped.
+ */
+export function cleanExif(tiffBytes: Uint8Array, keep: KeepSet, keepOrientation: boolean): CleanExif {
+  const tiff = parseTiff(tiffBytes);
+  if (!tiff) return { tiff: null };
+  const filter = (ifd: IfdName) => (e: IfdEntry) => {
+    if (ifd === 'ifd0' && e.tag === TAG_ORIENTATION) return keepOrientation;
+    const cat = categorizeTag(ifd, e.tag);
+    return cat !== 'never' && cat !== 'other' && keep.has(cat);
+  };
+  const ifd0 = tiff.ifd0.filter(filter('ifd0'));
+  const exif = tiff.exif.filter(filter('exif'));
+  const gps = tiff.gps.filter(filter('gps'));
+  let orientation = keepOrientation ? getOrientation(tiff) : undefined;
+  if (orientation === 1) {
+    // "Normal" orientation is the default; no need to store it.
+    orientation = undefined;
+    const i = ifd0.findIndex((e) => e.tag === TAG_ORIENTATION);
+    if (i >= 0) ifd0.splice(i, 1);
+  }
+  if (!ifd0.length && !exif.length && !gps.length) return { tiff: null };
+  return { tiff: buildTiff(tiff.littleEndian, ifd0, exif, gps), orientation };
+}
+
+/** True if a TIFF block holds nothing but the Orientation tag. */
+export function isOrientationOnly(tiffBytes: Uint8Array): boolean {
+  const t = parseTiff(tiffBytes);
+  return t !== null && t.ifd0.length === 1 && t.ifd0[0]?.tag === TAG_ORIENTATION &&
+    t.exif.length === 0 && t.gps.length === 0 && t.ifd1.length === 0;
 }

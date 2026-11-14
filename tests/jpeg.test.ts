@@ -155,8 +155,12 @@ describe('detectFormat / scrub', () => {
     expect(r.mime).toBe('image/jpeg');
   });
 
-  it('scrub() says HEIC is not supported yet', () => {
+  it('scrub() needs HEIC photos to be decoded first', () => {
     const heic = new Uint8Array([0, 0, 0, 24, ...[...'ftypheic'].map((c) => c.charCodeAt(0)), 0, 0, 0, 0]);
-    expect(() => scrub(heic)).toThrow(/coming soon/);
+    expect(() => scrub(heic)).toThrow(/decoded/);
+  });
+
+  it('scrub() rejects files that are not photos', () => {
+    expect(() => scrub(new TextEncoder().encode('hello world'))).toThrow(/doesn't look like/);
   });
 });

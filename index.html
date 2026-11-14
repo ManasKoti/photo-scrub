@@ -11,7 +11,7 @@
   </head>
   <body>
     <!-- Icon sprite: each icon is drawn once here and reused with <use href="#i-..."> -->
-    <svg aria-hidden="true" style="display: none">
+    <svg aria-hidden="true" class="sprite">
       <symbol id="i-logo" viewBox="0 0 24 24"><rect x="3" y="10" width="13" height="10" rx="3" /><circle cx="18.5" cy="6.5" r="2.5" /><circle cx="12" cy="4.5" r="1.5" /><path d="M6.5 15h6" /></symbol>
       <symbol id="i-code" viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5" /><path d="M16 7l5 5-5 5" /></symbol>
       <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z" /><path d="M8.5 12l2.5 2.5 4.5-5" /></symbol>
@@ -66,7 +66,7 @@
               <span class="btn btn-primary">Choose a photo</span>
               <input id="file-input" class="visually-hidden" type="file"
                 accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif" />
-              <span class="small muted">JPEG, PNG and WebP. iPhone HEIC photos coming soon.</span>
+              <span class="small muted">JPEG, PNG, WebP and HEIC (iPhone)</span>
             </label>
             <p id="start-error" class="alert" role="alert" hidden></p>
             <div class="center">
@@ -79,7 +79,7 @@
             </ol>
           </section>
 
-          <p id="stage-busy" class="center muted" hidden>Reading your photo…</p>
+          <p id="stage-busy" class="center muted busy" hidden><span class="spinner" aria-hidden="true"></span><span id="busy-text">Reading your photo…</span></p>
 
           <!-- ② Report -->
           <section id="stage-report" class="stack-lg" hidden>
@@ -99,6 +99,7 @@
               </div>
               <p id="report-sub" class="muted"></p>
               <div id="findings" class="stack"></div>
+              <p id="heic-note" class="note-card" hidden>iPhone photos (HEIC) are saved as a high-quality JPEG, because most websites can’t open HEIC. Converting also leaves all of the hidden data behind.</p>
               <div id="warnings" class="stack"></div>
 
               <div class="info-grid">
@@ -139,7 +140,7 @@
                 <svg class="i" width="24" height="24" aria-hidden="true"><use href="#i-download" /></svg>
                 <span id="download-label">Download</span>
               </a>
-              <p class="small muted center">Same quality as the original: only the hidden data is cut out.</p>
+              <p id="quality-note" class="small muted center">Same quality as the original: only the hidden data is cut out.</p>
             </section>
           </section>
 
@@ -180,9 +181,10 @@
             <span class="finding-title"></span>
             <span class="risk"></span>
           </span>
-          <span class="removing">
-            <svg class="i" width="16" height="16" aria-hidden="true"><use href="#i-check" /></svg>Removing
-          </span>
+          <label class="switch-wrap">
+            <span class="switch-text" aria-hidden="true">Remove</span>
+            <input type="checkbox" class="sw" checked />
+          </label>
         </div>
         <p class="finding-headline"></p>
         <p class="finding-detail muted"></p>

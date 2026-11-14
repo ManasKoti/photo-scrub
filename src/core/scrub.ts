@@ -4,7 +4,9 @@
  * module; this file routes to the right one.
  */
 
+import type { KeepSet } from './categories';
 import { detectFormat, type ImageFormat } from './detect';
+import { buildHeicOutput, decodeHeicToJpeg } from './heic';
 import { inspect, type Inspection } from './inspect';
 import { findJpegMetadata, parseJpeg, stripJpeg } from './jpeg';
 import { findPngMetadata, parsePng, stripPng } from './png';
@@ -31,7 +33,7 @@ export class UnsupportedFormatError extends Error {
     super(
       format === 'unknown'
         ? "This doesn't look like a JPEG, PNG, WebP or HEIC photo."
-        : `${format.toUpperCase()} support is coming soon. JPEG, PNG and WebP work today.`,
+        : `${format.toUpperCase()} isn't supported.`,
     );
   }
 }
@@ -59,11 +61,27 @@ const HANDLERS: Partial<Record<ImageFormat, Handler>> = {
   },
 };
 
-export function scrub(bytes: Uint8Array, options: StripOptions = {}): ScrubResult {
+export interface ScrubOptions extends StripOptions {
+  /** For HEIC: the photo already decoded to JPEG (see decodeHeicToJpeg). */
+  heicDecoded?: Uint8Array;
+}
+
+export function scrub(bytes: Uint8Array, options: ScrubOptions = {}): ScrubResult {
   const format = detectFormat(bytes);
+  if (format === 'heic') {
+    if (!options.heicDecoded) throw new Error('HEIC photos must be decoded before cleaning.');
+    const r = buildHeicOutput(bytes, options.heicDecoded, options.keep ?? new Set());
+    const keepsSomething = (options.keep?.size ?? 0) > 0;
+    return {
+      format, output: r.output, mime: 'image/jpeg', extension: 'jpg', removed: r.removed,
+      keptColorProfile: false, warnings: r.warnings,
+      remaining: findJpegMetadata(r.output).filter((k) => !(keepsSomething && k === 'exif')),
+    };
+  }
   const h = HANDLERS[format];
   if (!h) throw new UnsupportedFormatError(format);
   const r = h.strip(bytes, options);
+  const keepsSomething = (options.keep?.size ?? 0) > 0;
   return {
     format,
     output: r.output,
@@ -73,11 +91,28 @@ export function scrub(bytes: Uint8Array, options: StripOptions = {}): ScrubResul
     orientation: r.orientation,
     keptColorProfile: h.hasColorProfile(r.output),
     warnings: r.warnings,
-    remaining: h.find(r.output).filter((k) => k !== 'orientation-only'),
+    // Kept categories legitimately leave EXIF / PNG text behind; those are
+    // checked category by category in verify() instead.
+    remaining: h.find(r.output).filter((k) => k !== 'orientation-only' && !(keepsSomething && KEEPABLE.has(k))),
   };
 }
 
+const KEEPABLE = new Set(['exif', 'text', 'time']);
+
+/**
+ * Double-check a clean copy: anything the user didn't choose to keep must be
+ * gone. Returns a list of problems (empty = all good).
+ */
+export function verify(after: Inspection, result: ScrubResult, keep: KeepSet = new Set()): string[] {
+  const leaks = after.findings.filter((f) => !keep.has(f.id)).map((f) => f.title);
+  if (after.hasThumbnail) leaks.push('Hidden thumbnail');
+  leaks.push(...result.remaining);
+  return leaks;
+}
+
 export interface Analysis {
+  /** For HEIC: the decoded JPEG, reused when the user changes Remove/Keep. */
+  heicDecoded?: Uint8Array;
   /** What the original photo reveals. */
   before: Inspection;
   result: ScrubResult;
@@ -85,9 +120,15 @@ export interface Analysis {
   after: Inspection;
 }
 
-/** Inspect, clean, then inspect the clean copy to double-check. */
-export async function analyze(bytes: Uint8Array, options: StripOptions = {}): Promise<Analysis> {
+/**
+ * Inspect, clean, then inspect the clean copy to double-check.
+ * HEIC photos are decoded first (browser only).
+ */
+export async function analyze(bytes: Uint8Array, options: ScrubOptions = {}): Promise<Analysis> {
+  if (detectFormat(bytes) === 'heic' && !options.heicDecoded) {
+    options = { ...options, heicDecoded: await decodeHeicToJpeg(bytes) };
+  }
   const result = scrub(bytes, options); // throws early for unsupported formats
   const [before, after] = await Promise.all([inspect(bytes), inspect(result.output)]);
-  return { before, result, after };
+  return { before, result, after, heicDecoded: options.heicDecoded };
 }

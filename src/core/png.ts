@@ -13,7 +13,9 @@
 
 import { asciiAt, concat, startsWithAscii } from './bytes';
 import { crc32 } from './crc32';
-import { buildOrientationOnlyExif, EXIF_HEADER, getOrientation, parseTiff } from './exif';
+import { categorizeName } from './categories';
+import { cleanExif, EXIF_HEADER, isOrientationOnly } from './exif';
+import type { KeepSet } from './categories';
 import { RemovalTally, type StripOptions, type StripResult } from './types';
 
 const SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -100,6 +102,19 @@ function exifTiff(b: Uint8Array, c: PngChunk): Uint8Array {
   return startsWithAscii(data, 0, 'Exif\0\0') ? data.subarray(EXIF_HEADER.length) : data;
 }
 
+/** PNG text notes and timestamps the user chose to keep (e.g. "Creation Time"). */
+function keptText(b: Uint8Array, c: PngChunk, keep: KeepSet): boolean {
+  if (keep.size === 0) return false;
+  if (c.type === 'tIME') return keep.has('time');
+  if (c.type !== 'tEXt' && c.type !== 'zTXt' && c.type !== 'iTXt') return false;
+  if (kindOf(b, c) === 'xmp') return false;
+  const data = b.subarray(c.dataOffset, c.dataOffset + c.dataLength);
+  const nul = data.indexOf(0);
+  if (nul < 1) return false;
+  const cat = categorizeName('PNG text', asciiAt(data, 0, nul));
+  return cat !== 'other' && keep.has(cat);
+}
+
 export function stripPng(b: Uint8Array, opts: StripOptions = {}): StripResult {
   const keepOrientation = opts.keepOrientation ?? true;
   const keepColorProfile = opts.keepColorProfile ?? true;
@@ -107,10 +122,12 @@ export function stripPng(b: Uint8Array, opts: StripOptions = {}): StripResult {
   const tally = new RemovalTally(PNG_LABELS);
   const warnings: string[] = [];
   const parts: Uint8Array[] = [b.slice(0, 8)];
+  const keep = opts.keep ?? new Set();
   let orientation: number | undefined;
+  let exifWritten = false;
 
   for (const c of chunks) {
-    if (KEEP.has(c.type) || (c.type === 'iCCP' && keepColorProfile)) {
+    if (KEEP.has(c.type) || (c.type === 'iCCP' && keepColorProfile) || keptText(b, c, keep)) {
       parts.push(b.slice(c.offset, c.offset + c.length));
       continue;
     }
@@ -121,15 +138,15 @@ export function stripPng(b: Uint8Array, opts: StripOptions = {}): StripResult {
       continue;
     }
     tally.add(kindOf(b, c), c.length);
-    if (c.type === 'eXIf' && keepOrientation && orientation === undefined) {
-      const tiff = parseTiff(exifTiff(b, c));
-      const o = tiff ? getOrientation(tiff) : undefined;
-      if (o !== undefined && o !== 1) {
-        const chunk = makeChunk('eXIf', buildOrientationOnlyExif(o).subarray(EXIF_HEADER.length));
+    if (c.type === 'eXIf' && !exifWritten) {
+      const clean = cleanExif(exifTiff(b, c), keep, keepOrientation);
+      if (clean.tiff) {
+        const chunk = makeChunk('eXIf', clean.tiff);
         parts.push(chunk);
         tally.add('exif', -chunk.length);
-        orientation = o;
+        orientation = clean.orientation;
       }
+      exifWritten = true;
     }
   }
 
@@ -150,11 +167,7 @@ export function findPngMetadata(b: Uint8Array): string[] {
   for (const c of chunks) {
     if (KEEP.has(c.type) || c.type === 'iCCP' || isCritical(c.type)) continue;
     if (c.type === 'eXIf') {
-      const tiff = parseTiff(exifTiff(b, c));
-      const onlyOrientation =
-        tiff !== null && tiff.ifd0.length === 1 && tiff.ifd0[0]?.tag === 0x0112 &&
-        tiff.exif.length === 0 && tiff.gps.length === 0 && tiff.ifd1.length === 0;
-      found.push(onlyOrientation ? 'orientation-only' : 'exif');
+      found.push(isOrientationOnly(exifTiff(b, c)) ? 'orientation-only' : 'exif');
       continue;
     }
     found.push(kindOf(b, c));

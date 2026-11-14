@@ -6,8 +6,10 @@
 import './fonts';
 import './style.css';
 import { formatBytes } from './core/bytes';
-import type { Finding } from './core/inspect';
-import { analyze, type Analysis } from './core/scrub';
+import type { CategoryId } from './core/categories';
+import { inspect, type Finding } from './core/inspect';
+import { detectFormat } from './core/detect';
+import { analyze, scrub, UnsupportedFormatError, verify, type Analysis } from './core/scrub';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 
@@ -29,7 +31,10 @@ const rawPanel = $('#raw-panel');
 
 interface Current {
   file: File;
+  bytes: Uint8Array;
   analysis: Analysis;
+  /** Categories the user switched to "Keep". */
+  keep: Set<CategoryId>;
   url: string;
 }
 let current: Current | null = null;
@@ -121,6 +126,10 @@ function findingCard(f: Finding): HTMLElement {
   const tpl = $<HTMLTemplateElement>('#finding-template');
   const card = (tpl.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
   card.classList.add(`risk-${f.risk}`);
+  card.dataset.category = f.id;
+  const sw = card.querySelector<HTMLInputElement>('.sw')!;
+  sw.setAttribute('aria-label', `Remove ${f.title.toLowerCase()}`);
+  sw.addEventListener('change', () => setKeep(f.id, !sw.checked, card));
   card.querySelector('.finding-icon use')!.setAttribute('href', `#i-${ICONS[f.id]}`);
   card.querySelector('.finding-title')!.textContent = f.title;
   card.querySelector('.risk')!.textContent = RISK_LABEL[f.risk];
@@ -135,6 +144,48 @@ function findingCard(f: Finding): HTMLElement {
     detail.append(a);
   }
   return card;
+}
+
+// ---- Remove / Keep switches -------------------------------------------------
+
+/** Re-clean the photo with the current choices. Fast: no re-reading needed. */
+function setKeep(id: CategoryId, keep: boolean, card: HTMLElement): void {
+  if (!current) return;
+  if (keep) current.keep.add(id);
+  else current.keep.delete(id);
+  card.classList.toggle('is-kept', keep);
+  card.querySelector('.switch-text')!.textContent = keep ? 'Keep' : 'Remove';
+
+  const result = scrub(current.bytes, { keep: current.keep, heicDecoded: current.analysis.heicDecoded });
+  current.analysis = { ...current.analysis, result };
+  URL.revokeObjectURL(current.url);
+  current.url = URL.createObjectURL(new Blob([new Uint8Array(result.output)], { type: result.mime }));
+  updateSummary();
+  updateDownload();
+}
+
+function updateSummary(): void {
+  if (!current) return;
+  const { findings } = current.analysis.before;
+  const n = findings.length;
+  const kept = findings.filter((f) => current!.keep.has(f.id)).map((f) => f.title);
+  const always = alwaysRemoved(current.analysis);
+  let text: string;
+  if (n === 0) {
+    text = always.length > 0
+      ? 'There’s still some hidden data, listed below, and it will be removed.'
+      : 'This photo is already clean. You can still download a copy.';
+  } else if (kept.length === 0) {
+    text = n === 1 ? 'It will be removed when you download. Switch it off to keep it.' : `Removing all ${n}. Switch off anything you want to keep.`;
+  } else {
+    text = `Removing ${n - kept.length} of ${n}. Keeping ${joinWords(kept)}.`;
+  }
+  $('#report-sub').textContent = text;
+}
+
+function joinWords(words: string[]): string {
+  const lower = words.map((w) => w.toLowerCase());
+  return lower.length <= 1 ? (lower[0] ?? '') : `${lower.slice(0, -1).join(', ')} and ${lower.at(-1)}`;
 }
 
 // ---- file names -------------------------------------------------------------
@@ -172,13 +223,14 @@ function renderReport(file: File, a: Analysis): void {
   $('#step1').textContent = n === 0
     ? 'Good news: nothing personal found'
     : `This photo gives away ${n} ${n === 1 ? 'thing' : 'things'} about you`;
-  $('#report-sub').textContent = n > 0
-    ? 'All of it will be removed when you download.'
-    : always.length > 0
-      ? 'There’s still some hidden data, listed below, and it will be removed.'
-      : 'This photo is already clean. You can still download a copy.';
+  updateSummary();
 
   $('#findings').replaceChildren(...findings.map(findingCard));
+  const isHeic = a.result.format === 'heic';
+  $('#heic-note').hidden = !isHeic;
+  $('#quality-note').textContent = isHeic
+    ? 'Saved as a high-quality JPEG that opens everywhere.'
+    : 'Same quality as the original: only the hidden data is cut out.';
   $('#warnings').replaceChildren(
     ...a.result.warnings.map((w) => {
       const p = el('p', 'alert');
@@ -215,19 +267,25 @@ function renderReport(file: File, a: Analysis): void {
   $('#step1').focus();
 }
 
-function renderDone(): void {
+async function renderDone(): Promise<void> {
   if (!current) return;
+  const keep = current.keep;
   const a = current.analysis;
   $('#done-name').textContent = downloadName();
 
-  const verified = a.after.findings.length === 0 && a.result.remaining.length === 0;
+  // Re-read the exact file that was downloaded and check it.
+  const after = await inspect(a.result.output);
+  const leaks = verify(after, a.result, keep);
+  const verified = leaks.length === 0;
   $('#done-verified').hidden = !verified;
   const unverified = $('#done-unverified');
   unverified.hidden = verified;
-  unverified.textContent = verified ? '' : 'Some data could not be removed. Please don’t share this copy, and report the problem on GitHub.';
+  unverified.textContent = verified
+    ? ''
+    : `Some data could not be removed (${leaks.join(', ')}). Please don’t share this copy, and report the problem on GitHub.`;
 
   const rows: { label: string; removed: boolean }[] = [
-    ...a.before.findings.map((f) => ({ label: f.title, removed: true })),
+    ...a.before.findings.map((f) => ({ label: f.title, removed: !keep.has(f.id) })),
     ...alwaysRemoved(a).map((i) => ({ label: i.short, removed: true })),
     ...keptItems(a).map((i) => ({ label: i.short, removed: false })),
   ];
@@ -262,13 +320,23 @@ function showError(message: string): void {
 
 async function handleFile(file: File): Promise<void> {
   startError.hidden = true;
+  $('#busy-text').textContent = 'Reading your photo…';
   show('busy');
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const analysis = await analyze(bytes);
+    if (detectFormat(bytes) === 'heic') $('#busy-text').textContent = 'Converting your iPhone photo… (the first one takes a few seconds)';
+    let analysis: Analysis;
+    try {
+      analysis = await analyze(bytes);
+    } catch (err) {
+      if (detectFormat(bytes) === 'heic' && !(err instanceof UnsupportedFormatError)) {
+        throw new Error('Couldn’t open this HEIC photo. Try exporting it from your Photos app as a JPEG instead.');
+      }
+      throw err;
+    }
     if (current) URL.revokeObjectURL(current.url);
     const blob = new Blob([new Uint8Array(analysis.result.output)], { type: analysis.result.mime });
-    current = { file, analysis, url: URL.createObjectURL(blob) };
+    current = { file, bytes, analysis, keep: new Set(), url: URL.createObjectURL(blob) };
     renderReport(file, analysis);
   } catch (err) {
     showError(err instanceof Error ? err.message : 'Something went wrong reading this file.');
@@ -321,6 +389,6 @@ rawToggle.addEventListener('click', () => {
 renameBox.addEventListener('change', updateDownload);
 downloadLink.addEventListener('click', () => {
   // The browser starts the download from the link; then show the done screen.
-  setTimeout(renderDone, 150);
+  setTimeout(() => void renderDone(), 150);
 });
 for (const b of document.querySelectorAll('.js-reset')) b.addEventListener('click', reset);

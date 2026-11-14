@@ -9,12 +9,14 @@
 
 import exifr from 'exifr';
 import { asciiAt, concat, startsWithAscii } from './bytes';
+import { categorizeName as categorize, CATEGORY_IDS, type CategoryId } from './categories';
 import { detectFormat } from './detect';
 import { EXIF_HEADER, parseTiff } from './exif';
+import { readHeicMetadata } from './heic';
 import { parsePng } from './png';
 import { parseWebp } from './webp';
 
-export type CategoryId = 'location' | 'device' | 'time' | 'author' | 'camera';
+export type { CategoryId };
 export type Risk = 'high' | 'medium' | 'low';
 
 export interface RawTag {
@@ -43,7 +45,6 @@ export interface Inspection {
   hasThumbnail: boolean;
 }
 
-const CATEGORY_ORDER: CategoryId[] = ['location', 'device', 'time', 'author', 'camera'];
 const TITLES: Record<CategoryId, string> = {
   location: 'Location',
   device: 'Your phone',
@@ -53,23 +54,8 @@ const TITLES: Record<CategoryId, string> = {
 };
 const RISK: Record<CategoryId, Risk> = { location: 'high', device: 'medium', time: 'medium', author: 'medium', camera: 'low' };
 
-const LOCATION = /^GPS|latitude|longitude|altitude|^(City|Country|CountryCode|Country-PrimaryLocationName|Province-State|State|Sub-location|Sublocation|Location|LocationCreated|LocationShown)$/i;
-const DEVICE = /^(Make|Model|Software|HostComputer|BodySerialNumber|SerialNumber|CameraSerialNumber|InternalSerialNumber|LensMake|LensModel|LensSerialNumber|LensInfo|Lens|UniqueCameraModel|ImageUniqueID|DocumentID|InstanceID|OriginalDocumentID|CreatorTool|DeviceManufacturer|DeviceModel)$/i;
-const AUTHOR = /^(Artist|Copyright|Creator|creator|By-line|Byline|Rights|rights|Credit|OwnerName|CameraOwnerName|XPAuthor|Author|Contact|CopyrightNotice|Writer-Editor)$/;
-const TIME = /^(DateTime|DateTimeOriginal|DateTimeDigitized|CreateDate|ModifyDate|MetadataDate|DateCreated|TimeCreated|DigitalCreationDate|DigitalCreationTime|SubSecTime|SubSecTimeOriginal|SubSecTimeDigitized|OffsetTime|OffsetTimeOriginal|OffsetTimeDigitized|Creation Time|LastModified)$/i;
-const CAMERA_GROUPS = new Set(['EXIF']);
-
 /** Tags that carry nothing personal and are not listed. */
 const SKIP = new Set(['latitude', 'longitude', 'Orientation']);
-
-function categorize(group: string, tag: string): CategoryId | 'other' {
-  if (LOCATION.test(tag)) return 'location';
-  if (AUTHOR.test(tag)) return 'author';
-  if (TIME.test(tag)) return 'time';
-  if (DEVICE.test(tag)) return 'device';
-  if (CAMERA_GROUPS.has(group)) return 'camera';
-  return 'other';
-}
 
 function formatValue(v: unknown): string {
   if (v === null || v === undefined) return '';
@@ -149,7 +135,12 @@ async function readRaw(b: Uint8Array): Promise<{ data: Record<string, Record<str
   let extra: RawTag[] = [];
   let tiff: Uint8Array | undefined;
 
-  if (format === 'webp') {
+  if (format === 'heic') {
+    const m = readHeicMetadata(b);
+    tiff = m.exif;
+    if (!m.exif && !m.xmp) return { data: {}, extra, hasThumbnail: false };
+    source = wrapAsJpeg(m.exif, m.xmp);
+  } else if (format === 'webp') {
     let xmp: Uint8Array | undefined;
     for (const c of parseWebp(b).chunks) {
       const d = b.subarray(c.dataOffset, c.dataOffset + c.dataLength);
@@ -319,7 +310,7 @@ export async function inspect(bytes: Uint8Array): Promise<Inspection> {
 
   const hasLocation = raw.some((t) => t.category === 'location');
   const findings: Finding[] = [];
-  for (const id of CATEGORY_ORDER) {
+  for (const id of CATEGORY_IDS) {
     const tags = raw.filter((t) => t.category === id);
     if (tags.length === 0) continue;
     findings.push({ id, title: TITLES[id], risk: RISK[id], tags, ...describe(id, tags, lat, lon, hasLocation) });

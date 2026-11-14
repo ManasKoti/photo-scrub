@@ -50,6 +50,8 @@ a:hover { color: #2a2a99; }
 .row-wrap { gap: 12px; flex-wrap: wrap; }
 .stack { display: flex; flex-direction: column; gap: 16px; }
 .stack-lg { display: flex; flex-direction: column; gap: 28px; }
+.sprite { display: none; }
+.card-roomy { padding: 28px; border-radius: 30px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---- layout ---- */
@@ -145,6 +147,14 @@ a:hover { color: #2a2a99; }
   background: var(--high-bg); color: var(--high-ink); font-weight: 700;
 }
 
+.busy { align-items: center; gap: 12px; padding: 32px 0; font-weight: 700; }
+.spinner {
+  width: 24px; height: 24px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.note-card { background: var(--accent-soft); border-radius: 20px; padding: 14px 18px; font-weight: 600; }
+
 /* ---- report stage ---- */
 .file-chip { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 22px; flex-wrap: wrap; }
 .preview { width: 64px; height: 64px; border-radius: 16px; object-fit: cover; background: #dce7ff; flex: none; }
@@ -169,10 +179,23 @@ a:hover { color: #2a2a99; }
 .finding-title-wrap { flex: 1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .finding-title { font-family: var(--font-display); font-weight: 600; font-size: 22px; }
 .risk {
-  font-size: 13px; font-weight: 800; letter-spacing: 0.04em; padding: 3px 10px; border-radius: 999px;
+  white-space: nowrap; font-size: 13px; font-weight: 800; letter-spacing: 0.04em; padding: 3px 10px; border-radius: 999px;
   background: var(--low-bg); color: var(--low-ink);
 }
-.removing { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 800; color: var(--muted); }
+.switch-wrap { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; flex: none; }
+.switch-text { font-size: 14px; font-weight: 800; color: var(--muted); min-width: 3.6em; text-align: right; }
+.sw {
+  appearance: none; -webkit-appearance: none; margin: 0; width: 52px; height: 30px; border-radius: 999px;
+  background: #7f84a3; position: relative; cursor: pointer; flex: none; transition: background 0.15s;
+}
+.sw::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(30, 33, 64, 0.3); transition: left 0.15s;
+}
+.sw:checked { background: var(--accent); }
+.sw:checked::after { left: 25px; }
+.finding.is-kept { border-style: dashed; box-shadow: none; background: #fbfcff; }
+.finding.is-kept .finding-headline { color: var(--muted); }
 .finding-headline { font-size: 19px; font-weight: 700; overflow-wrap: anywhere; }
 .finding-detail a { font-weight: 700; }
 .risk-high { border-color: var(--high-line); box-shadow: 0 6px 0 var(--high-line); }
@@ -260,3 +283,21 @@ a:hover { color: #2a2a99; }
 .faq summary::-webkit-details-marker { display: none; }
 .faq details[open] .chev { transform: rotate(180deg); }
 .faq details p { margin-bottom: 16px; color: var(--muted); }
+
+/* Small phones: tighten the finding cards so titles and switches fit. */
+@media (max-width: 440px) {
+  .column { padding-left: 14px; padding-right: 14px; }
+  .finding { padding: 16px; }
+  .finding-head { gap: 10px; }
+  .finding-icon { width: 40px; height: 40px; border-radius: 14px; }
+  .finding-title { font-size: 19px; }
+  .finding-title-wrap { gap: 2px 8px; }
+  .risk { white-space: nowrap; font-size: 12px; }
+  .switch-text { display: none; }
+  .finding-headline { font-size: 17px; }
+  .card-bold { padding: 20px 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}

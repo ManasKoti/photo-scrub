@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatExifDate, inspect } from '../src/core/inspect';
-import { analyze } from '../src/core/scrub';
+import exifr from 'exifr';
+import { analyze, scrub, verify } from '../src/core/scrub';
 import { fixture } from './helpers';
 
 describe('inspect', () => {
@@ -57,4 +58,54 @@ describe('analyze', () => {
       expect(a.result.remaining).toEqual([]);
     });
   }
+});
+
+describe('selective removal (keep some categories)', () => {
+  const cases: [string, string][] = [
+    ['phone-gps.jpg', 'jpeg'], ['screenshot.png', 'png'], ['phone.webp', 'webp'],
+  ];
+  for (const [f] of cases) {
+    it(`${f}: keeping date & time and camera settings removes everything else`, async () => {
+      const keep = new Set(['time', 'camera'] as const);
+      const r = scrub(fixture(f), { keep });
+      const after = await inspect(r.output);
+      expect(after.findings.map((x) => x.id).sort()).toEqual(['camera', 'time']);
+      expect(verify(after, r, keep)).toEqual([]);
+      expect(after.raw.some((t) => /GPS|Make|Model|Serial|Artist/i.test(t.tag))).toBe(false);
+      expect(r.orientation).toBe(6);
+    });
+
+    it(`${f}: keeping location keeps the exact coordinates`, async () => {
+      const r = scrub(fixture(f), { keep: new Set(['location'] as const) });
+      const after = await inspect(r.output);
+      expect(after.findings.map((x) => x.id)).toEqual(['location']);
+      expect(after.findings[0]!.headline).toBe('Taken at 48.8582° N, 2.2945° E');
+    });
+  }
+
+  it('keeping everything still drops the thumbnail, XMP and trailing data', async () => {
+    const keep = new Set(['location', 'device', 'time', 'author', 'camera'] as const);
+    const r = scrub(fixture('progressive-motion.jpg'), { keep });
+    expect(r.removed.map((x) => x.kind)).toEqual(expect.arrayContaining(['trailer']));
+    const after = await inspect(r.output);
+    expect(verify(after, r, keep)).toEqual([]);
+    expect(after.findings.length).toBe(5);
+  });
+
+  it('verify() flags anything the user did not keep', async () => {
+    const r = scrub(fixture('phone-gps.jpg'), { keep: new Set(['location'] as const) });
+    const after = await inspect(r.output);
+    // Pretend the user only wanted time kept: location is now a leak.
+    expect(verify(after, r, new Set(['time'] as const))).toEqual(['Location']);
+  });
+
+  it('kept EXIF stays readable by an independent reader (exifr)', async () => {
+    const r = scrub(fixture('phone-gps.jpg'), { keep: new Set(['time', 'device'] as const) });
+    const meta = await exifr.parse(r.output, { tiff: true, exif: true, gps: true, mergeOutput: false, reviveValues: false });
+    expect(meta.ifd0).toMatchObject({ Make: 'FakePhone', Model: 'FakePhone 15 Pro', Software: 'FakeOS 18.1', ModifyDate: '2026:11:14 23:01:00' });
+    expect(meta.exif).toMatchObject({ DateTimeOriginal: '2026:11:14 23:01:00', SerialNumber: 'SN-0123456789' });
+    expect(meta.exif.ISO).toBeUndefined();
+    expect(meta.gps).toBeUndefined();
+    expect(meta.ifd0.Artist).toBeUndefined();
+  });
 });

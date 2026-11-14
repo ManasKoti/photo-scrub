@@ -10,7 +10,7 @@
  */
 
 import { asciiAt, concat, startsWithAscii } from './bytes';
-import { buildOrientationOnlyExif, EXIF_HEADER, getOrientation, parseTiff } from './exif';
+import { cleanExif, EXIF_HEADER, isOrientationOnly } from './exif';
 import { RemovalTally, type StripOptions, type StripResult } from './types';
 
 const KEEP = new Set(['VP8 ', 'VP8L', 'VP8X', 'ALPH', 'ANIM', 'ANMF']);
@@ -82,8 +82,10 @@ export function stripWebp(b: Uint8Array, opts: StripOptions = {}): StripResult {
   const { chunks, end } = parseWebp(b);
   const tally = new RemovalTally(WEBP_LABELS);
   const kept: Uint8Array[] = [];
+  const keep = opts.keep ?? new Set();
   let vp8x: Uint8Array | undefined;
   let orientation: number | undefined;
+  let newExif: Uint8Array | null = null;
   let hasIcc = false;
 
   for (const c of chunks) {
@@ -98,18 +100,21 @@ export function stripWebp(b: Uint8Array, opts: StripOptions = {}): StripResult {
       hasIcc = true;
     } else {
       tally.add(kindOf(c.type), c.length);
-      if (c.type === 'EXIF' && keepOrientation && orientation === undefined) {
-        const tiff = parseTiff(exifTiff(b, c));
-        const o = tiff ? getOrientation(tiff) : undefined;
-        if (o !== undefined && o !== 1) orientation = o;
+      if (c.type === 'EXIF' && newExif === null) {
+        const clean = cleanExif(exifTiff(b, c), keep, keepOrientation);
+        newExif = clean.tiff;
+        orientation = clean.orientation;
       }
     }
   }
 
   // EXIF is only allowed in the extended (VP8X) format.
-  if (orientation !== undefined && !vp8x) orientation = undefined;
-  if (orientation !== undefined) {
-    const chunk = makeChunk('EXIF', buildOrientationOnlyExif(orientation).subarray(EXIF_HEADER.length));
+  if (!vp8x) {
+    newExif = null;
+    orientation = undefined;
+  }
+  if (newExif) {
+    const chunk = makeChunk('EXIF', newExif);
     kept.push(chunk); // EXIF belongs after the image data
     tally.add('exif', -chunk.length);
   }
@@ -117,7 +122,7 @@ export function stripWebp(b: Uint8Array, opts: StripOptions = {}): StripResult {
   if (vp8x && vp8x.length > 8) {
     let flags = (vp8x[8] ?? 0) & ~(FLAG_EXIF | FLAG_XMP | FLAG_ICC);
     if (hasIcc) flags |= FLAG_ICC;
-    if (orientation !== undefined) flags |= FLAG_EXIF;
+    if (newExif) flags |= FLAG_EXIF;
     vp8x[8] = flags;
   }
 
@@ -136,11 +141,7 @@ export function findWebpMetadata(b: Uint8Array): string[] {
   for (const c of chunks) {
     if (KEEP.has(c.type) || c.type === 'ICCP') continue;
     if (c.type === 'EXIF') {
-      const tiff = parseTiff(exifTiff(b, c));
-      const onlyOrientation =
-        tiff !== null && tiff.ifd0.length === 1 && tiff.ifd0[0]?.tag === 0x0112 &&
-        tiff.exif.length === 0 && tiff.gps.length === 0 && tiff.ifd1.length === 0;
-      found.push(onlyOrientation ? 'orientation-only' : 'exif');
+      found.push(isOrientationOnly(exifTiff(b, c)) ? 'orientation-only' : 'exif');
       continue;
     }
     found.push(kindOf(c.type));
