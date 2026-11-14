@@ -39,22 +39,9 @@ Requires [Node.js](https://nodejs.org/) 20 or newer.
 ```bash
 npm install
 npm run dev      # open the printed http://localhost:5173 link
-npm test         # run the test suite
-npm run build    # production build into dist/ (with the security policy)
-npm run preview  # serve the production build locally
 ```
 
 Run `npm install` again whenever `package.json` changes.
-
-## Deploying
-
-Every push to `main` runs the tests and publishes the site to GitHub Pages (see [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)). One-time setup: in the GitHub repo, go to **Settings → Pages** and set **Source** to **GitHub Actions**.
-
-## Testing with your own photos
-
-Put real photos in a `test-photos/` folder. Git ignores it, so your personal photos (and their metadata) never get committed.
-
-`tests/fixtures/` holds generated photos with **fake** metadata. To regenerate them, run `python scripts/make-fixtures.py` (needs `pillow`, plus `pillow-heif` for the HEIC sample).
 
 ## License
 
