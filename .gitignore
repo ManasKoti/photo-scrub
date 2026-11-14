@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.local
+.DS_Store
+Thumbs.db
+
+# Your own real photos for manual testing. Never commit these:
+# they contain the very metadata this tool exists to remove.
+test-photos/

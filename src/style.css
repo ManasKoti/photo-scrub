@@ -1,0 +1,35 @@
+/* Placeholder styles for Phase 1. The real design comes before Phase 2. */
+:root {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  color-scheme: light dark;
+}
+body { margin: 0; }
+main { max-width: 40rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+#drop-zone {
+  display: block;
+  padding: 2.5rem 1rem;
+  border: 2px dashed currentColor;
+  border-radius: 12px;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0.85;
+}
+#drop-zone.dragging, #drop-zone:hover { opacity: 1; border-style: solid; }
+#drop-zone input { display: block; margin: 1rem auto 0; }
+#result { margin-top: 2rem; }
+#result h2 { font-size: 1.1rem; word-break: break-all; }
+.ok { color: #1a7f37; font-weight: 600; }
+.warning { color: #b35900; }
+.error { color: #c62828; }
+.note { opacity: 0.75; font-size: 0.9rem; }
+.button {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.7rem 1.2rem;
+  border-radius: 8px;
+  background: #1a73e8;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+}
